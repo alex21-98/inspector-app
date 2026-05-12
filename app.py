@@ -97,13 +97,13 @@ if st.session_state.df_crudo is not None:
     st.header("⚙️ 2. Procesamiento de Datos")
     
     MAPEO_COLUMNAS = {
-        'Fecha': ['fecha', 'fec', 'date'],
-        'Mes': ['mes', 'month'],
-        'Año': ['año', 'anio', 'year'],
-        'Semana': ['semana', 'SEMANA', 'sem', 'week', 'no sem'],
-        'Fundo': ['Fundos', 'campo', 'fundo'],
-        'Lote': ['lote', 'lot', 'id lote'],
-        'Variedad': ['variedad', 'var']
+        'Fecha': ['fecha','Fecha','FECHA', 'fec', 'date'],
+        'Mes': ['mes','Mes','MES', 'month'],
+        'Año': ['año','Año','AÑO', 'anio', 'year'],
+        'Semana': ['semana','Semana', 'SEMANA', 'sem', 'week', 'no sem'],
+        'Fundo': ['Fundos','FUNDOS', 'campo', 'fundo','FUNDO','Fundo'],
+        'Lote': ['lote','LOTE' 'lot', 'id lote'],
+        'Variedad': ['variedad','VARIEDAD','VARIEDADES',variedades','Variedad', 'var']
     }
 
     def preparar_datos(df_raw):
