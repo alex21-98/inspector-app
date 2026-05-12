@@ -103,7 +103,7 @@ if st.session_state.df_crudo is not None:
         'Semana': ['semana','Semana', 'SEMANA', 'sem', 'week', 'no sem'],
         'Fundo': ['Fundos','FUNDOS', 'campo', 'fundo','FUNDO','Fundo'],
         'Lote': ['lote','LOTE' 'lot', 'id lote'],
-        'Variedad': ['variedad','VARIEDAD','VARIEDADES',variedades','Variedad', 'var']
+        'Variedad': ['variedad','VARIEDAD','VARIEDADES','variedades','Variedad', 'var']
     }
 
     def preparar_datos(df_raw):
