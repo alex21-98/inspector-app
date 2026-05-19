@@ -155,7 +155,18 @@ if uploaded_file is not None:
                 
                 color_texto_principal = '#45605A'
                 color_borde_grafico = '#B0BEC5'
-                colores_fuertes = ['#D32F2F', '#1976D2', '#388E3C', '#FBC02D', '#8E24AA', '#F57C00', '#0097A7', '#689F38', '#C2185B', '#111111']
+                
+                # REEMPLAZA TU LISTA ORIGINAL POR ESTA DE 40 COLORES
+                colores_fuertes = [
+                    # Tus 10 originales
+                    '#D32F2F', '#1976D2', '#388E3C', '#FBC02D', '#8E24AA', '#F57C00', '#0097A7', '#689F38', '#C2185B', '#111111',
+                    # 10 Nuevos (Tonos medios y profundos)
+                    '#3F51B5', '#00796B', '#E64A19', '#AFB42B', '#512DA8', '#0288D1', '#F50057', '#C0CA33', '#8D6E63', '#26A69A',
+                    # 10 Nuevos (Tonos vibrantes)
+                    '#FF3D00', '#2979FF', '#00C853', '#FFAB00', '#D500F9', '#FF6D00', '#00B8D4', '#AEEA00', '#C51162', '#607D8B',
+                    # 10 Nuevos (Tonos oscuros para alto contraste)
+                    '#795548', '#311B92', '#004D40', '#827717', '#3E2723', '#B71C1C', '#01579B', '#1B5E20', '#E65100', '#4A148C'
+                ]
 
                 # Contenedor para mostrar los gráficos en la web
                 graficos_expander = st.expander("Ver Previsualización de Gráficos", expanded=True)
