@@ -53,9 +53,7 @@ def cargar_y_limpiar_datos(file, sheet, freq):
             df_proc['Periodo'] = df_proc['Fecha'].dt.strftime('%d/%m/%Y')
             df_proc['Orden_Periodo'] = df_proc['Fecha'].dt.normalize()
         elif freq == 'W':
-            # Mantenemos el lunes como base para asegurar que todas las fechas de la semana se agrupen igual
             df_proc['Orden_Periodo'] = df_proc['Fecha'] - pd.to_timedelta(df_proc['Fecha'].dt.dayofweek, unit='d')
-            # Usamos el número de semana si existe, o el formato de fecha para asegurar visibilidad
             if 'Semana' in df_proc.columns:
                 df_proc['Periodo'] = 'Sem ' + df_proc['Semana'].fillna(0).astype(int).astype(str)
             else:
@@ -76,12 +74,12 @@ def cargar_y_limpiar_datos(file, sheet, freq):
 
         columnas_agrupar = columnas_requeridas + columnas_defectos
         df_agrupado = df_proc[columnas_agrupar].groupby(columnas_requeridas).mean().reset_index()
-        # Aseguramos el orden cronológico absoluto
-        df_agrupado = df_agrupado.sort_values(by='Orden_Periodo')
-        return df_agrupado, columnas_defectos
+        # MANTENEMOS TU LÓGICA DE ORDENAMIENTO
+        df_agrupado = df_agrupado.sort_values(by=columnas_requeridas, ascending=[True, True, True, True, True])
+        return df_agrupado, columnas_defectos, df_proc # DEVOLVEMOS TAMBIÉN EL PROCESADO ORIGINAL
     else:
-        st.error("❌ Faltan columnas críticas en el Excel (Fecha, Fundo, Lote o Variedad).")
-        return pd.DataFrame(), []
+        st.error("❌ Faltan columnas críticas.")
+        return pd.DataFrame(), [], pd.DataFrame()
 
 # --- PANEL LATERAL ---
 with st.sidebar:
@@ -95,27 +93,25 @@ with st.sidebar:
         mapa_freq = {"Diario": 'D', "Semanal": 'W', "Mensual": 'M', "Anual": 'Y'}
         freq_elegida = mapa_freq[opcion_freq]
 
-# ==========================================
-# LÓGICA PRINCIPAL
-# ==========================================
+# --- LÓGICA PRINCIPAL ---
 if uploaded_file is not None:
-    df_final, lista_defectos = cargar_y_limpiar_datos(uploaded_file, hoja_final, freq_elegida)
+    df_final, lista_defectos, df_raw_proc = cargar_y_limpiar_datos(uploaded_file, hoja_final, freq_elegida)
     
     if not df_final.empty:
         st.divider()
-        # Filtros de Fechas que permiten capturar hasta el día de hoy
         col_f1, col_f2 = st.columns(2)
-        fecha_min = df_final['Orden_Periodo'].min().date()
-        fecha_max = df_final['Orden_Periodo'].max().date()
+        # CAMBIO 1: Usamos la fecha mínima y máxima del df original para el rango del input
+        fecha_min = df_raw_proc['Fecha'].min().date()
+        fecha_max = df_raw_proc['Fecha'].max().date()
         
         fecha_ini = col_f1.date_input("Fecha Inicio", value=fecha_min, min_value=fecha_min, max_value=fecha_max)
         fecha_fin = col_f2.date_input("Fecha Fin", value=fecha_max, min_value=fecha_min, max_value=fecha_max)
         
-        # Filtro: usamos Orden_Periodo para el rango, asegurando que se capture todo
-        df_plot = df_final[(df_final['Orden_Periodo'].dt.date >= fecha_ini) & 
-                           (df_final['Orden_Periodo'].dt.date <= fecha_fin)].copy()
+        # CAMBIO 2: Filtramos usando 'Fecha' original, así capturamos cualquier semana con datos parciales
+        mask = (df_final['Orden_Periodo'].dt.date >= fecha_ini) & (df_final['Orden_Periodo'].dt.date <= fecha_fin)
+        df_plot = df_final[mask].copy()
         
-        # Filtros en Cascada
+        # ... (Todo tu código de filtros en cascada y generación de gráficos sigue IGUAL aquí abajo)
         col1, col2, col3 = st.columns(3)
         fundos_sel = col1.multiselect("Fundos", df_plot['Fundo'].unique())
         if fundos_sel: df_plot = df_plot[df_plot['Fundo'].isin(fundos_sel)]
