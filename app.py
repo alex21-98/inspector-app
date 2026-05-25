@@ -48,12 +48,18 @@ def cargar_y_limpiar_datos(file, sheet, freq):
         df_proc['Fecha'] = pd.to_datetime(df_proc['Fecha'], errors='coerce', dayfirst=True)
         df_proc = df_proc.dropna(subset=['Fecha'])
 
+        # Lógica de Periodos
         if freq == 'D':
             df_proc['Periodo'] = df_proc['Fecha'].dt.strftime('%d/%m/%Y')
             df_proc['Orden_Periodo'] = df_proc['Fecha'].dt.normalize()
         elif freq == 'W':
-            df_proc['Periodo'] = df_proc['Fecha'].dt.strftime('Sem %V')
+            # Mantenemos el lunes como base para asegurar que todas las fechas de la semana se agrupen igual
             df_proc['Orden_Periodo'] = df_proc['Fecha'] - pd.to_timedelta(df_proc['Fecha'].dt.dayofweek, unit='d')
+            # Usamos el número de semana si existe, o el formato de fecha para asegurar visibilidad
+            if 'Semana' in df_proc.columns:
+                df_proc['Periodo'] = 'Sem ' + df_proc['Semana'].fillna(0).astype(int).astype(str)
+            else:
+                df_proc['Periodo'] = df_proc['Orden_Periodo'].dt.strftime('Sem %V')
         elif freq == 'M':
             df_proc['Periodo'] = df_proc['Fecha'].dt.strftime('%m/%Y')
             df_proc['Orden_Periodo'] = df_proc['Fecha'] - pd.to_timedelta(df_proc['Fecha'].dt.day - 1, unit='d')
@@ -70,37 +76,34 @@ def cargar_y_limpiar_datos(file, sheet, freq):
 
         columnas_agrupar = columnas_requeridas + columnas_defectos
         df_agrupado = df_proc[columnas_agrupar].groupby(columnas_requeridas).mean().reset_index()
-        df_agrupado = df_agrupado.sort_values(by=columnas_requeridas, ascending=[True, True, True, True, True])
+        # Aseguramos el orden cronológico absoluto
+        df_agrupado = df_agrupado.sort_values(by='Orden_Periodo')
         return df_agrupado, columnas_defectos
     else:
         st.error("❌ Faltan columnas críticas en el Excel (Fecha, Fundo, Lote o Variedad).")
         return pd.DataFrame(), []
 
-# --- PANEL LATERAL PARA SUBIR ARCHIVO ---
+# --- PANEL LATERAL ---
 with st.sidebar:
     st.header("📁 1. Carga de Datos")
     uploaded_file = st.file_uploader("Sube tu archivo Excel (.xlsx)", type=["xlsx"])
-    
     if uploaded_file is not None:
         excel_obj = pd.ExcelFile(uploaded_file)
         hoja_final = st.selectbox("👉 Selecciona la hoja:", excel_obj.sheet_names)
-        
         st.header("⚙️ 2. Periodicidad")
         opcion_freq = st.selectbox("Agrupar reporte por:", ["Semanal", "Diario", "Mensual", "Anual"])
         mapa_freq = {"Diario": 'D', "Semanal": 'W', "Mensual": 'M', "Anual": 'Y'}
         freq_elegida = mapa_freq[opcion_freq]
 
 # ==========================================
-# LÓGICA PRINCIPAL SI HAY ARCHIVO
+# LÓGICA PRINCIPAL
 # ==========================================
 if uploaded_file is not None:
     df_final, lista_defectos = cargar_y_limpiar_datos(uploaded_file, hoja_final, freq_elegida)
     
     if not df_final.empty:
         st.divider()
-        st.subheader("🎯 3. Cascada de Filtros")
-        
-        # Filtro de Fechas
+        # Filtros de Fechas que permiten capturar hasta el día de hoy
         col_f1, col_f2 = st.columns(2)
         fecha_min = df_final['Orden_Periodo'].min().date()
         fecha_max = df_final['Orden_Periodo'].max().date()
@@ -108,21 +111,19 @@ if uploaded_file is not None:
         fecha_ini = col_f1.date_input("Fecha Inicio", value=fecha_min, min_value=fecha_min, max_value=fecha_max)
         fecha_fin = col_f2.date_input("Fecha Fin", value=fecha_max, min_value=fecha_min, max_value=fecha_max)
         
-        # Aplicar filtro de fechas
-        df_plot = df_final[(df_final['Orden_Periodo'].dt.date >= fecha_ini) & (df_final['Orden_Periodo'].dt.date <= fecha_fin)].copy()
+        # Filtro: usamos Orden_Periodo para el rango, asegurando que se capture todo
+        df_plot = df_final[(df_final['Orden_Periodo'].dt.date >= fecha_ini) & 
+                           (df_final['Orden_Periodo'].dt.date <= fecha_fin)].copy()
         
         # Filtros en Cascada
         col1, col2, col3 = st.columns(3)
         fundos_sel = col1.multiselect("Fundos", df_plot['Fundo'].unique())
         if fundos_sel: df_plot = df_plot[df_plot['Fundo'].isin(fundos_sel)]
-        
         variedades_sel = col2.multiselect("Variedades", df_plot['Variedad'].unique())
         if variedades_sel: df_plot = df_plot[df_plot['Variedad'].isin(variedades_sel)]
-        
         df_plot['Etiqueta_Lote'] = df_plot['Fundo'] + " - " + df_plot['Lote']
         lotes_sel = col3.multiselect("Lotes", df_plot['Etiqueta_Lote'].unique())
         if lotes_sel: df_plot = df_plot[df_plot['Etiqueta_Lote'].isin(lotes_sel)]
-        
         defectos_sel = st.multiselect("Defectos a graficar", lista_defectos)
 
         # ==========================================
