@@ -228,7 +228,7 @@ if uploaded_file is not None:
 
                         # 2. Asignamos un pad dinámico según las filas reales
                         # Si es 1 fila da 45, si son 2 filas da 75, etc.
-                        pad_dinamico = 10 + (filas_leyenda * 30)
+                        pad_dinamico = 10 + (filas_leyenda * 15)
 
                         # 3. Dibujamos la leyenda y aplicamos el pad dinámico al título
                         ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), ncol=columnas_leyenda, frameon=False, fontsize=11)
