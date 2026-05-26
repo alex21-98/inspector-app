@@ -216,7 +216,7 @@ if uploaded_file is not None:
                             ax.axhline(y=valor_tol_grafico, color='#D32F2F', linestyle='--', linewidth=2.5, label=f'Límite ({valor_tol}%)', zorder=3)
                             x_pos_final = len(periodos_ordenados) - 1 if len(periodos_ordenados) > 0 else 0
                             ax.text(x_pos_final, valor_tol_grafico, f' T: {valor_tol}% ', color='white', fontsize=12, fontweight='bold',
-                                    ha='right', va='bottom', zorder=15, bbox=dict(facecolor='#D32F2F', edgecolor='white', alpha=0.1, boxstyle='round,pad=0.3'))
+                                    ha='left', va='bottom', zorder=15, bbox=dict(facecolor='#D32F2F', edgecolor='white', alpha=0.9, boxstyle='round,pad=0.3'))
 
                         ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.04), ncol=min(len(lotes_presentes) + 1, 5), frameon=False, fontsize=11)
                         texto_fundos = " y ".join(data_var['Fundo'].unique())
