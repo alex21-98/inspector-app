@@ -218,13 +218,14 @@ if uploaded_file is not None:
                             ax.text(0, valor_tol_grafico, f' T: {valor_tol}% ', color='white', fontsize=12, fontweight='bold',
                                     ha='left', va='bottom', zorder=15, bbox=dict(facecolor='#D32F2F', edgecolor='white', alpha=0.9, boxstyle='round,pad=0.3'))
 
-                        ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1), ncol=min(len(lotes_presentes) + 1, 5), frameon=False, fontsize=11)
+                        ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), ncol=min(len(lotes_presentes) + 1, 5), frameon=False, fontsize=11)
                         texto_fundos = " y ".join(data_var['Fundo'].unique())
-                        ax.set_title(f"Evaluación De MP: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=100)
+                        ax.set_title(f"Evaluación De MP: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=15)
                         ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
                         ax.set_xticklabels(periodos_ordenados, rotation=45, ha='right', fontsize=12)
                         ax.get_yaxis().set_visible(False)
                         ax.margins(y=0.20)
+                        ax.figure.set_layout_engine('constrained')
 
                         for spine in ax.spines.values():
                             spine.set_visible(True)
