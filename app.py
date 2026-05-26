@@ -215,10 +215,10 @@ if uploaded_file is not None:
                             valor_tol_grafico = valor_tol / 100 if es_escala_decimal else valor_tol
                             ax.axhline(y=valor_tol_grafico, color='#D32F2F', linestyle='--', linewidth=2.5, label=f'Límite ({valor_tol}%)', zorder=3)
                             x_pos_final = len(periodos_ordenados) - 1 if len(periodos_ordenados) > 0 else 0
-                            ax.text(x_pos_final, valor_tol_grafico, f' T: {valor_tol}% ', color='white', fontsize=12, fontweight='bold',
+                            ax.text(0, valor_tol_grafico, f' T: {valor_tol}% ', color='white', fontsize=12, fontweight='bold',
                                     ha='left', va='bottom', zorder=15, bbox=dict(facecolor='#D32F2F', edgecolor='white', alpha=0.9, boxstyle='round,pad=0.3'))
 
-                        ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.04), ncol=min(len(lotes_presentes) + 1, 5), frameon=False, fontsize=11)
+                        ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1), ncol=min(len(lotes_presentes) + 1, 5), frameon=False, fontsize=11)
                         texto_fundos = " y ".join(data_var['Fundo'].unique())
                         ax.set_title(f"Evaluación De MP: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=100)
                         ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
