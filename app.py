@@ -204,13 +204,13 @@ if uploaded_file is not None:
                         # NUEVO: Lógica dinámica de tamaño de texto según cantidad
                         # =========================================================
                         num_lineas = len(entidades_presentes)
-                        if num_lineas <= 3:
+                        if num_lineas <= 5:
                             fs_dinamico = 14
                             pad_box = 0.3
-                        elif num_lineas <= 6:
-                            fs_dinamico = 14
+                        elif num_lineas <= 8:
+                            fs_dinamico = 13
                             pad_box = 0.25
-                        elif num_lineas <= 10:
+                        elif num_lineas <= 12:
                             fs_dinamico = 12
                             pad_box = 0.2
                         else:
