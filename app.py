@@ -14,7 +14,7 @@ import datetime
 # ==========================================
 st.set_page_config(page_title="Reporte MP-Calidad", layout="wide", page_icon="📊")
 
-st.title("📊🖥️​ Generador de Reportes de MP-Calidad Gerencial")
+st.title("📊🖥️ Generador de Reportes de MP-Calidad Gerencial")
 st.markdown("Complejo Agroindustrial Beta - Sistema de Visualización de Defectos")
 
 # ==========================================
@@ -111,7 +111,6 @@ if uploaded_file is not None:
         mask = (df_final['Orden_Periodo'].dt.date >= fecha_ini) & (df_final['Orden_Periodo'].dt.date <= fecha_fin)
         df_plot = df_final[mask].copy()
         
-        # ... (Todo tu código de filtros en cascada y generación de gráficos sigue IGUAL aquí abajo)
         col1, col2, col3 = st.columns(3)
         fundos_sel = col1.multiselect("Fundos", df_plot['Fundo'].unique())
         if fundos_sel: df_plot = df_plot[df_plot['Fundo'].isin(fundos_sel)]
@@ -120,7 +119,20 @@ if uploaded_file is not None:
         df_plot['Etiqueta_Lote'] = df_plot['Fundo'] + " - " + df_plot['Lote']
         lotes_sel = col3.multiselect("Lotes", df_plot['Etiqueta_Lote'].unique())
         if lotes_sel: df_plot = df_plot[df_plot['Etiqueta_Lote'].isin(lotes_sel)]
+        
         defectos_sel = st.multiselect("Defectos a graficar", lista_defectos)
+
+        # ==========================================
+        # NUEVO: FILTRO PARA NIVEL DE DETALLE DEL GRÁFICO
+        # ==========================================
+        st.divider()
+        st.subheader("📈 3. Nivel de Detalle del Gráfico")
+        nivel_agrupacion = st.radio(
+            "Selecciona cómo deseas agrupar las líneas en el gráfico:",
+            ["Por Lote", "Por Fundo"],
+            horizontal=True
+        )
+        col_agrupacion = 'Etiqueta_Lote' if nivel_agrupacion == "Por Lote" else 'Fundo'
 
         # ==========================================
         # TOLERANCIAS DINÁMICAS
@@ -154,16 +166,9 @@ if uploaded_file is not None:
                 color_borde_grafico = '#B0BEC5'
                 
                 colores_fuertes = [
-                    # Bloque 1: Originales
                     '#1976D2', '#388E3C', '#FBC02D', '#8E24AA', '#F57C00', '#0097A7', '#689F38', '#C2185B', '#111111', '#455A64',
-                    
-                    # Bloque 2: Tonos medios y profundos
                     '#3F51B5', '#00796B', '#AFB42B', '#512DA8', '#0288D1', '#F50057', '#C0CA33', '#8D6E63', '#26A69A', '#00ACC1',
-                    
-                    # Bloque 3: Tonos vibrantes
                     '#2979FF', '#00C853', '#FFAB00', '#D500F9', '#FF6D00', '#00B8D4', '#AEEA00', '#C51162', '#607D8B', '#FF4081',
-                    
-                    # Bloque 4: Tonos oscuros para alto contraste
                     '#795548', '#311B92', '#004D40', '#827717', '#3E2723', '#01579B', '#1B5E20', '#E65100', '#4A148C', '#263238'
                 ]
 
@@ -172,35 +177,44 @@ if uploaded_file is not None:
 
                 for defecto in defectos_sel:
                     for var in variedades_sel:
-                        data_var = df_plot[df_plot['Variedad'] == var]
-                        if data_var[defecto].isnull().all() or data_var.empty: continue
+                        data_var_raw = df_plot[df_plot['Variedad'] == var]
+                        if data_var_raw[defecto].isnull().all() or data_var_raw.empty: continue
+
+                        # NUEVO: Re-agrupamos la data según el nivel seleccionado (Fundo o Lote)
+                        cols_groupby = [col_agrupacion, 'Periodo', 'Orden_Periodo']
+                        if 'Fundo' not in cols_groupby:
+                            cols_groupby.append('Fundo')
+                        data_var = data_var_raw.groupby(cols_groupby, dropna=False)[defecto].mean().reset_index()
 
                         fig, ax = plt.subplots(figsize=(14, 8), dpi=150)
                         
                         periodos_ordenados = data_var.sort_values('Orden_Periodo')['Periodo'].unique()
-                        lotes_presentes = data_var['Etiqueta_Lote'].unique()
+                        
+                        # CAMBIO: Obtenemos las entidades a graficar según lo elegido
+                        entidades_presentes = data_var[col_agrupacion].unique()
                         textos_a_ajustar = []
 
                         max_val_test = data_var[defecto].max()
                         es_escala_decimal = max_val_test < 1.0 if pd.notna(max_val_test) else False
 
-                        for i, lote in enumerate(lotes_presentes):
-                            data_lote = data_var[data_var['Etiqueta_Lote'] == lote]
+                        # CAMBIO: Iteramos sobre la entidad elegida en lugar de solo lote
+                        for i, entidad in enumerate(entidades_presentes):
+                            data_entidad = data_var[data_var[col_agrupacion] == entidad]
                             color_asignado = colores_fuertes[i % len(colores_fuertes)]
 
-                            valores_lote_alineados = []
+                            valores_entidad_alineados = []
                             for per in periodos_ordenados:
-                                valor_per = data_lote.loc[data_lote['Periodo'] == per, defecto]
+                                valor_per = data_entidad.loc[data_entidad['Periodo'] == per, defecto]
                                 if not valor_per.empty and pd.notna(valor_per.iloc[0]):
-                                    valores_lote_alineados.append(valor_per.iloc[0])
+                                    valores_entidad_alineados.append(valor_per.iloc[0])
                                 else:
-                                    valores_lote_alineados.append(np.nan)
+                                    valores_entidad_alineados.append(np.nan)
 
-                            ax.plot(periodos_ordenados, valores_lote_alineados, marker='o', label=lote, 
+                            ax.plot(periodos_ordenados, valores_entidad_alineados, marker='o', label=entidad, 
                                     linewidth=4, color=color_asignado, markersize=10, markeredgecolor='white', 
                                     markeredgewidth=1.5, zorder=5)
 
-                            for x_val, p in zip(periodos_ordenados, valores_lote_alineados):
+                            for x_val, p in zip(periodos_ordenados, valores_entidad_alineados):
                                 if pd.notna(p):
                                     val_etq = p * 100 if es_escala_decimal else p
                                     t = ax.text(x_val, p, f'{val_etq:.1f}%', fontsize=14, fontweight='bold', color='white', 
@@ -220,32 +234,23 @@ if uploaded_file is not None:
                             ax.text(0, valor_tol_grafico, f' T: {valor_tol}% ', color='white', fontsize=12, fontweight='bold',
                                     ha='left', va='bottom', zorder=15, bbox=dict(facecolor='#D32F2F', edgecolor='white', alpha=0.9, boxstyle='round,pad=0.3'))
 
-                        # 1. Calculamos las columnas y las filas de la leyenda de forma directa
-                        columnas_leyenda = min(len(lotes_presentes) + 1, 5)
+                        columnas_leyenda = min(len(entidades_presentes) + 1, 5)
                         
-                        # Truco matemático simple para saber las filas sin importar 'math'
-                        # (Total de elementos + columnas - 1) // columnas
-                        total_items = len(lotes_presentes) + 1
+                        total_items = len(entidades_presentes) + 1
                         filas_leyenda = (total_items + columnas_leyenda - 1) // columnas_leyenda
 
-                        # 2. Asignamos un pad dinámico según las filas reales
-                        # Si es 1 fila da 45, si son 2 filas da 75, etc.
                         pad_dinamico = 10 + (filas_leyenda * 15)
 
-                        # 3. Dibujamos la leyenda y aplicamos el pad dinámico al título
                         ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), ncol=columnas_leyenda, frameon=False, fontsize=11)
                         
                         texto_fundos = " y ".join(data_var['Fundo'].unique())
                         
-                        # Usamos pad=pad_dinamico para que se ajuste solo
-                        ax.set_title(f"Evaluación De MP: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=pad_dinamico)
+                        ax.set_title(f"Evaluación De PT: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=pad_dinamico)
                         
                         ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
                         ax.set_xticklabels(periodos_ordenados, rotation=45, ha='right', fontsize=12)
                         ax.get_yaxis().set_visible(False)
                         ax.margins(y=0.20)
-                        
-                        # ELIMINAMOS por completo la línea de set_layout_engine('constrained') para evitar el choque
                         
                         ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
                         ax.set_xticklabels(periodos_ordenados, rotation=45, ha='right', fontsize=12)
