@@ -208,13 +208,13 @@ if uploaded_file is not None:
                             fs_dinamico = 14
                             pad_box = 0.3
                         elif num_lineas <= 6:
-                            fs_dinamico = 12
+                            fs_dinamico = 14
                             pad_box = 0.25
                         elif num_lineas <= 10:
-                            fs_dinamico = 10
+                            fs_dinamico = 12
                             pad_box = 0.2
                         else:
-                            fs_dinamico = 9
+                            fs_dinamico = 12
                             pad_box = 0.15
 
                         for i, entidad in enumerate(entidades_presentes):
