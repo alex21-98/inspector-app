@@ -123,16 +123,27 @@ if uploaded_file is not None:
         defectos_sel = st.multiselect("Defectos a graficar", lista_defectos)
 
         # ==========================================
-        # NUEVO: FILTRO PARA NIVEL DE DETALLE DEL GRÁFICO
+        # FILTRO PARA NIVEL DE DETALLE DEL GRÁFICO
         # ==========================================
         st.divider()
-        st.subheader("📈 3. Nivel de Detalle del Gráfico")
-        nivel_agrupacion = st.radio(
-            "Selecciona cómo deseas agrupar las líneas en el gráfico:",
-            ["Por Lote", "Por Fundo"],
-            horizontal=True
-        )
-        col_agrupacion = 'Etiqueta_Lote' if nivel_agrupacion == "Por Lote" else 'Fundo'
+        st.subheader("📈 3. Configuración Visual de Gráficos")
+        col_visual1, col_visual2 = st.columns(2)
+        
+        with col_visual1:
+            nivel_agrupacion = st.radio(
+                "Selecciona cómo deseas agrupar las líneas en el gráfico:",
+                ["Por Lote", "Por Fundo"],
+                horizontal=True
+            )
+            col_agrupacion = 'Etiqueta_Lote' if nivel_agrupacion == "Por Lote" else 'Fundo'
+            
+        with col_visual2:
+            # NUEVO: Input para definir el título personalizado de los gráficos
+            titulo_personalizado = st.text_input(
+                "Título base del gráfico:", 
+                value="Evaluación de MP",
+                help="Cambia este texto para modificar el inicio del título en gráficos y diapositivas"
+            )
 
         # ==========================================
         # TOLERANCIAS DINÁMICAS
@@ -180,7 +191,7 @@ if uploaded_file is not None:
                         data_var_raw = df_plot[df_plot['Variedad'] == var]
                         if data_var_raw[defecto].isnull().all() or data_var_raw.empty: continue
 
-                        # NUEVO: Re-agrupamos la data según el nivel seleccionado (Fundo o Lote)
+                        # Re-agrupamos la data según el nivel seleccionado (Fundo o Lote)
                         cols_groupby = [col_agrupacion, 'Periodo', 'Orden_Periodo']
                         if 'Fundo' not in cols_groupby:
                             cols_groupby.append('Fundo')
@@ -190,14 +201,12 @@ if uploaded_file is not None:
                         
                         periodos_ordenados = data_var.sort_values('Orden_Periodo')['Periodo'].unique()
                         
-                        # CAMBIO: Obtenemos las entidades a graficar según lo elegido
                         entidades_presentes = data_var[col_agrupacion].unique()
                         textos_a_ajustar = []
 
                         max_val_test = data_var[defecto].max()
                         es_escala_decimal = max_val_test < 1.0 if pd.notna(max_val_test) else False
 
-                        # CAMBIO: Iteramos sobre la entidad elegida en lugar de solo lote
                         for i, entidad in enumerate(entidades_presentes):
                             data_entidad = data_var[data_var[col_agrupacion] == entidad]
                             color_asignado = colores_fuertes[i % len(colores_fuertes)]
@@ -245,7 +254,8 @@ if uploaded_file is not None:
                         
                         texto_fundos = " y ".join(data_var['Fundo'].unique())
                         
-                        ax.set_title(f"Evaluación De MP: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=pad_dinamico)
+                        # CAMBIO: Ahora el título concatena de forma dinámica la variable ingresada por el usuario
+                        ax.set_title(f"{titulo_personalizado}: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=pad_dinamico)
                         
                         ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
                         ax.set_xticklabels(periodos_ordenados, rotation=45, ha='right', fontsize=12)
@@ -274,7 +284,8 @@ if uploaded_file is not None:
 
                         slide = prs.slides.add_slide(prs.slide_layouts[5])
                         title_shape = slide.shapes.title
-                        title_shape.text = f"Evaluación MP: {defecto}"
+                        # CAMBIO: También se actualiza de forma automática en la cabecera de la diapositiva PPTX
+                        title_shape.text = f"{titulo_personalizado}: {defecto}"
                         title_shape.text_frame.paragraphs[0].font.color.rgb = RGBColor(69, 96, 90)
                         title_shape.text_frame.paragraphs[0].font.bold = True
                         
