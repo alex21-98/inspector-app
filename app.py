@@ -100,14 +100,12 @@ if uploaded_file is not None:
     if not df_final.empty:
         st.divider()
         col_f1, col_f2 = st.columns(2)
-        # CAMBIO 1: Usamos la fecha mínima y máxima del df original para el rango del input
         fecha_min = df_raw_proc['Fecha'].min().date()
         fecha_max = df_raw_proc['Fecha'].max().date()
         
         fecha_ini = col_f1.date_input("Fecha Inicio", value=fecha_min, min_value=fecha_min, max_value=fecha_max)
         fecha_fin = col_f2.date_input("Fecha Fin", value=fecha_max, min_value=fecha_min, max_value=fecha_max)
         
-        # CAMBIO 2: Filtramos usando 'Fecha' original, así capturamos cualquier semana con datos parciales
         mask = (df_final['Orden_Periodo'].dt.date >= fecha_ini) & (df_final['Orden_Periodo'].dt.date <= fecha_fin)
         df_plot = df_final[mask].copy()
         
@@ -138,10 +136,9 @@ if uploaded_file is not None:
             col_agrupacion = 'Etiqueta_Lote' if nivel_agrupacion == "Por Lote" else 'Fundo'
             
         with col_visual2:
-            # NUEVO: Input para definir el título personalizado de los gráficos
             titulo_personalizado = st.text_input(
                 "Título base del gráfico:", 
-                value="Evaluación de MP",
+                value="Evaluación de PT",
                 help="Cambia este texto para modificar el inicio del título en gráficos y diapositivas"
             )
 
@@ -154,7 +151,6 @@ if uploaded_file is not None:
             st.subheader("📏 4. Configuración de Tolerancias (%)")
             st.write("Establece el límite permitido para cada defecto. Déjalo en 0 si no deseas línea de tolerancia.")
             
-            # Crear columnas dinámicas para los inputs de tolerancia
             cols = st.columns(min(len(defectos_sel), 4))
             for i, defecto in enumerate(defectos_sel):
                 with cols[i % 4]:
@@ -183,7 +179,6 @@ if uploaded_file is not None:
                     '#795548', '#311B92', '#004D40', '#827717', '#3E2723', '#01579B', '#1B5E20', '#E65100', '#4A148C', '#263238'
                 ]
 
-                # Contenedor para mostrar los gráficos en la web
                 graficos_expander = st.expander("Ver Previsualización de Gráficos", expanded=True)
 
                 for defecto in defectos_sel:
@@ -191,7 +186,6 @@ if uploaded_file is not None:
                         data_var_raw = df_plot[df_plot['Variedad'] == var]
                         if data_var_raw[defecto].isnull().all() or data_var_raw.empty: continue
 
-                        # Re-agrupamos la data según el nivel seleccionado (Fundo o Lote)
                         cols_groupby = [col_agrupacion, 'Periodo', 'Orden_Periodo']
                         if 'Fundo' not in cols_groupby:
                             cols_groupby.append('Fundo')
@@ -226,14 +220,29 @@ if uploaded_file is not None:
                             for x_val, p in zip(periodos_ordenados, valores_entidad_alineados):
                                 if pd.notna(p):
                                     val_etq = p * 100 if es_escala_decimal else p
+                                    
+                                    # CAMBIO: Se agregó ha='center' y va='center' para que la etiqueta
+                                    # se inicie exactamente en el centro de su semana antes del ajuste.
                                     t = ax.text(x_val, p, f'{val_etq:.1f}%', fontsize=14, fontweight='bold', color='white', 
+                                                ha='center', va='center',
                                                 zorder=10, bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='white', boxstyle='square,pad=0.3'))
                                     textos_a_ajustar.append(t)
 
                         if textos_a_ajustar:
-                            adjust_text(textos_a_ajustar, ax=ax, expand_points=(1.5, 2.5), expand_text=(2.0, 3.0),
-                                        force_text=(2.0, 4.0), force_points=(0.5, 1.0),
-                                        arrowprops=dict(arrowstyle='-', color='#78909C', lw=1.5, alpha=0.9, zorder=2), max_move=50)
+                            # CAMBIO IMPORTANTE: Configuración estricta de adjustText para movimiento SOLO VERTICAL.
+                            # only_move='y' evita que las etiquetas se fuguen hacia la izquierda o derecha.
+                            # force_text y force_points en X se dejan en 0.0, y en Y se aumenta para forzar la separación arriba/abajo.
+                            adjust_text(
+                                textos_a_ajustar, 
+                                ax=ax, 
+                                only_move={'points': 'y', 'text': 'y'}, 
+                                expand_points=(1.0, 2.5), 
+                                expand_text=(1.0, 2.5),
+                                force_text=(0.0, 4.0), 
+                                force_points=(0.0, 4.0),
+                                arrowprops=dict(arrowstyle='-', color='#78909C', lw=1.2, alpha=0.8, zorder=2), 
+                                max_move=150
+                            )
 
                         if defecto in tolerancias_defectos:
                             valor_tol = tolerancias_defectos[defecto]
@@ -254,18 +263,13 @@ if uploaded_file is not None:
                         
                         texto_fundos = " y ".join(data_var['Fundo'].unique())
                         
-                        # CAMBIO: Ahora el título concatena de forma dinámica la variable ingresada por el usuario
                         ax.set_title(f"{titulo_personalizado}: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=pad_dinamico)
                         
                         ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
                         ax.set_xticklabels(periodos_ordenados, rotation=45, ha='right', fontsize=12)
                         ax.get_yaxis().set_visible(False)
-                        ax.margins(y=0.20)
+                        ax.margins(y=0.25) # Aumenté un poco el margen Y para dar espacio a etiquetas apiladas
                         
-                        ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
-                        ax.set_xticklabels(periodos_ordenados, rotation=45, ha='right', fontsize=12)
-                        ax.get_yaxis().set_visible(False)
-                        ax.margins(y=0.20)
                         for spine in ax.spines.values():
                             spine.set_visible(True)
                             spine.set_color(color_borde_grafico)
@@ -274,17 +278,14 @@ if uploaded_file is not None:
                         plt.figtext(0.99, 0.01, 'Complejo Agroindustrial Beta', horizontalalignment='right', fontsize=10, color='gray', style='italic')
                         plt.tight_layout()
 
-                        # Mostrar en Streamlit
                         graficos_expander.pyplot(fig)
 
-                        # Guardar en PPTX (En memoria)
                         image_stream = io.BytesIO()
                         fig.savefig(image_stream, format='png', dpi=300, bbox_inches='tight', transparent=False)
                         plt.close(fig)
 
                         slide = prs.slides.add_slide(prs.slide_layouts[5])
                         title_shape = slide.shapes.title
-                        # CAMBIO: También se actualiza de forma automática en la cabecera de la diapositiva PPTX
                         title_shape.text = f"{titulo_personalizado}: {defecto}"
                         title_shape.text_frame.paragraphs[0].font.color.rgb = RGBColor(69, 96, 90)
                         title_shape.text_frame.paragraphs[0].font.bold = True
@@ -293,7 +294,6 @@ if uploaded_file is not None:
                         slide.shapes.add_picture(image_stream, Inches(0.25), Inches(1.8), width=Inches(9.5))
                         diapositivas_creadas += 1
 
-                # Botón de Descarga del PPTX
                 if diapositivas_creadas > 0:
                     pptx_stream = io.BytesIO()
                     prs.save(pptx_stream)
