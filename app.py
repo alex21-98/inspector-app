@@ -74,9 +74,8 @@ def cargar_y_limpiar_datos(file, sheet, freq):
 
         columnas_agrupar = columnas_requeridas + columnas_defectos
         df_agrupado = df_proc[columnas_agrupar].groupby(columnas_requeridas).mean().reset_index()
-        # MANTENEMOS TU LÓGICA DE ORDENAMIENTO
         df_agrupado = df_agrupado.sort_values(by=columnas_requeridas, ascending=[True, True, True, True, True])
-        return df_agrupado, columnas_defectos, df_proc # DEVOLVEMOS TAMBIÉN EL PROCESADO ORIGINAL
+        return df_agrupado, columnas_defectos, df_proc
     else:
         st.error("❌ Faltan columnas críticas.")
         return pd.DataFrame(), [], pd.DataFrame()
@@ -201,6 +200,23 @@ if uploaded_file is not None:
                         max_val_test = data_var[defecto].max()
                         es_escala_decimal = max_val_test < 1.0 if pd.notna(max_val_test) else False
 
+                        # =========================================================
+                        # NUEVO: Lógica dinámica de tamaño de texto según cantidad
+                        # =========================================================
+                        num_lineas = len(entidades_presentes)
+                        if num_lineas <= 3:
+                            fs_dinamico = 14
+                            pad_box = 0.3
+                        elif num_lineas <= 6:
+                            fs_dinamico = 12
+                            pad_box = 0.25
+                        elif num_lineas <= 10:
+                            fs_dinamico = 10
+                            pad_box = 0.2
+                        else:
+                            fs_dinamico = 9
+                            pad_box = 0.15
+
                         for i, entidad in enumerate(entidades_presentes):
                             data_entidad = data_var[data_var[col_agrupacion] == entidad]
                             color_asignado = colores_fuertes[i % len(colores_fuertes)]
@@ -214,34 +230,33 @@ if uploaded_file is not None:
                                     valores_entidad_alineados.append(np.nan)
 
                             ax.plot(periodos_ordenados, valores_entidad_alineados, marker='o', label=entidad, 
-                                    linewidth=4, color=color_asignado, markersize=10, markeredgecolor='white', 
+                                    linewidth=4, color=color_asignado, markersize=8, markeredgecolor='white', 
                                     markeredgewidth=1.5, zorder=5)
 
                             for x_val, p in zip(periodos_ordenados, valores_entidad_alineados):
                                 if pd.notna(p):
                                     val_etq = p * 100 if es_escala_decimal else p
-                                    
-                                    # CAMBIO: Se agregó ha='center' y va='center' para que la etiqueta
-                                    # se inicie exactamente en el centro de su semana antes del ajuste.
-                                    t = ax.text(x_val, p, f'{val_etq:.1f}%', fontsize=14, fontweight='bold', color='white', 
+                                    # CAMBIO: Usamos fs_dinamico y pad_box
+                                    t = ax.text(x_val, p, f'{val_etq:.1f}%', fontsize=fs_dinamico, fontweight='bold', color='white', 
                                                 ha='center', va='center',
-                                                zorder=10, bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='white', boxstyle='square,pad=0.3'))
+                                                zorder=10, bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='white', boxstyle=f'square,pad={pad_box}'))
                                     textos_a_ajustar.append(t)
 
                         if textos_a_ajustar:
-                            # CAMBIO IMPORTANTE: Configuración estricta de adjustText para movimiento SOLO VERTICAL.
-                            # only_move='y' evita que las etiquetas se fuguen hacia la izquierda o derecha.
-                            # force_text y force_points en X se dejan en 0.0, y en Y se aumenta para forzar la separación arriba/abajo.
+                            # CAMBIO IMPORTANTE: Ajuste de colisiones inteligente
+                            # Permitimos movimiento XY, pero la fuerza horizontal (force_text X=1.5) 
+                            # es mucho mayor que la vertical (force_text Y=0.2).
+                            # Esto evita que un valor de 5% salte por debajo del 2%, mandándolo a un costado con una línea que lo señala claramente.
                             adjust_text(
                                 textos_a_ajustar, 
                                 ax=ax, 
-                                only_move={'points': 'y', 'text': 'y'}, 
-                                expand_points=(1.0, 2.5), 
-                                expand_text=(1.0, 2.5),
-                                force_text=(0.0, 4.0), 
-                                force_points=(0.0, 4.0),
+                                only_move={'points': 'xy', 'text': 'xy'}, 
+                                expand_points=(1.2, 1.2), 
+                                expand_text=(1.1, 1.1),
+                                force_text=(1.5, 0.2),    # Fuerte empuje horizontal, muy leve vertical
+                                force_points=(1.5, 0.2),  # Igual para la repulsión contra los puntos
                                 arrowprops=dict(arrowstyle='-', color='#78909C', lw=1.2, alpha=0.8, zorder=2), 
-                                max_move=150
+                                max_move=40               # Limita qué tan lejos pueden volar las etiquetas
                             )
 
                         if defecto in tolerancias_defectos:
@@ -268,7 +283,7 @@ if uploaded_file is not None:
                         ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
                         ax.set_xticklabels(periodos_ordenados, rotation=45, ha='right', fontsize=12)
                         ax.get_yaxis().set_visible(False)
-                        ax.margins(y=0.25) # Aumenté un poco el margen Y para dar espacio a etiquetas apiladas
+                        ax.margins(y=0.25)
                         
                         for spine in ax.spines.values():
                             spine.set_visible(True)
