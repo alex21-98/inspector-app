@@ -238,7 +238,7 @@ if uploaded_file is not None:
                         texto_fundos = " y ".join(data_var['Fundo'].unique())
                         
                         # Usamos pad=pad_dinamico para que se ajuste solo
-                        ax.set_title(f"Evaluación De PT: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=pad_dinamico)
+                        ax.set_title(f"Evaluación De MP: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=pad_dinamico)
                         
                         ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
                         ax.set_xticklabels(periodos_ordenados, rotation=45, ha='right', fontsize=12)
