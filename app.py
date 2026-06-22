@@ -254,9 +254,9 @@ if uploaded_file is not None:
                                 expand_points=(1.2, 1.2), 
                                 expand_text=(1.1, 1.1),
                                 force_text=(1.2, 0.2),    # Fuerte empuje horizontal, muy leve vertical
-                                force_points=(1.4, 0.2),  # Igual para la repulsión contra los puntos
+                                force_points=(1.2, 0.2),  # Igual para la repulsión contra los puntos
                                 arrowprops=dict(arrowstyle='-', color='#78909C', lw=1.2, alpha=0.8, zorder=2), 
-                                max_move=30               # Limita qué tan lejos pueden volar las etiquetas
+                                max_move=25               # Limita qué tan lejos pueden volar las etiquetas
                             )
 
                         if defecto in tolerancias_defectos:
