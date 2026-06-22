@@ -251,10 +251,10 @@ if uploaded_file is not None:
                                 textos_a_ajustar, 
                                 ax=ax, 
                                 only_move={'points': 'xy', 'text': 'xy'}, 
-                                expand_points=(1.2, 1.2), 
-                                expand_text=(1.1, 1.1),
-                                force_text=(1.2, 0.3),    # Fuerte empuje horizontal, muy leve vertical
-                                force_points=(1.2, 0.3),  # Igual para la repulsión contra los puntos
+                                expand_points=(1.05, 1.1), 
+                                expand_text=(1.05, 1.1),
+                                force_text=(0.4, 0.8),    # Fuerte empuje horizontal, muy leve vertical
+                                force_points=(0.4, 0.8),  # Igual para la repulsión contra los puntos
                                 arrowprops=dict(arrowstyle='-', color='#78909C', lw=1.2, alpha=0.8, zorder=2), 
                                 max_move=25               # Limita qué tan lejos pueden volar las etiquetas
                             )
