@@ -99,8 +99,12 @@ if uploaded_file is not None:
     if not df_final.empty:
         st.divider()
         col_f1, col_f2 = st.columns(2)
-        fecha_min = df_raw_proc['Fecha'].min().date()
-        fecha_max = df_raw_proc['Fecha'].max().date()
+        
+        # 🔥 SOLUCIÓN AQUÍ 🔥
+        # Cambiamos ['Fecha'] por ['Orden_Periodo'] para que el input del calendario 
+        # coincida correctamente con la agrupación de la semana o mes.
+        fecha_min = df_raw_proc['Orden_Periodo'].min().date()
+        fecha_max = df_raw_proc['Orden_Periodo'].max().date()
         
         fecha_ini = col_f1.date_input("Fecha Inicio", value=fecha_min, min_value=fecha_min, max_value=fecha_max)
         fecha_fin = col_f2.date_input("Fecha Fin", value=fecha_max, min_value=fecha_min, max_value=fecha_max)
@@ -200,9 +204,6 @@ if uploaded_file is not None:
                         max_val_test = data_var[defecto].max()
                         es_escala_decimal = max_val_test < 1.0 if pd.notna(max_val_test) else False
 
-                        # =========================================================
-                        # NUEVO: Lógica dinámica de tamaño de texto según cantidad
-                        # =========================================================
                         num_lineas = len(entidades_presentes)
                         if num_lineas <= 5:
                             fs_dinamico = 14
@@ -236,27 +237,22 @@ if uploaded_file is not None:
                             for x_val, p in zip(periodos_ordenados, valores_entidad_alineados):
                                 if pd.notna(p):
                                     val_etq = p * 100 if es_escala_decimal else p
-                                    # CAMBIO: Usamos fs_dinamico y pad_box
                                     t = ax.text(x_val, p, f'{val_etq:.1f}%', fontsize=fs_dinamico, fontweight='bold', color='white', 
                                                 ha='center', va='center',
                                                 zorder=10, bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='white', boxstyle=f'square,pad={pad_box}'))
                                     textos_a_ajustar.append(t)
 
                         if textos_a_ajustar:
-                            # CAMBIO IMPORTANTE: Ajuste de colisiones inteligente
-                            # Permitimos movimiento XY, pero la fuerza horizontal (force_text X=1.5) 
-                            # es mucho mayor que la vertical (force_text Y=0.2).
-                            # Esto evita que un valor de 5% salte por debajo del 2%, mandándolo a un costado con una línea que lo señala claramente.
                             adjust_text(
                                 textos_a_ajustar, 
                                 ax=ax, 
                                 only_move={'points': 'xy', 'text': 'xy'}, 
                                 expand_points=(1.05, 1.1), 
                                 expand_text=(1.05, 1.1),
-                                force_text=(0.8, 1.3),    # Fuerte empuje horizontal, muy leve vertical
-                                force_points=(0.4, 1.2),  # Igual para la repulsión contra los puntos
+                                force_text=(0.8, 1.3),
+                                force_points=(0.4, 1.2),
                                 arrowprops=dict(arrowstyle='-', color='#78909C', lw=1.2, alpha=0.8, zorder=2), 
-                                max_move=25               # Limita qué tan lejos pueden volar las etiquetas
+                                max_move=25
                             )
 
                         if defecto in tolerancias_defectos:
