@@ -100,16 +100,20 @@ if uploaded_file is not None:
         st.divider()
         col_f1, col_f2 = st.columns(2)
         
-        # 🔥 SOLUCIÓN AQUÍ 🔥
-        # Cambiamos ['Fecha'] por ['Orden_Periodo'] para que el input del calendario 
-        # coincida correctamente con la agrupación de la semana o mes.
-        fecha_min = df_raw_proc['Orden_Periodo'].min().date()
-        fecha_max = df_raw_proc['Orden_Periodo'].max().date()
+        # 🔥 SOLUCIÓN DE FECHAS AQUÍ 🔥
+        # Obtenemos las fechas reales de la base para que el calendario llegue hasta el último día con datos
+        fecha_min = df_raw_proc['Fecha'].min().date()
+        fecha_max = df_raw_proc['Fecha'].max().date()
         
         fecha_ini = col_f1.date_input("Fecha Inicio", value=fecha_min, min_value=fecha_min, max_value=fecha_max)
         fecha_fin = col_f2.date_input("Fecha Fin", value=fecha_max, min_value=fecha_min, max_value=fecha_max)
         
-        mask = (df_final['Orden_Periodo'].dt.date >= fecha_ini) & (df_final['Orden_Periodo'].dt.date <= fecha_fin)
+        # Identificamos qué 'Orden_Periodo' están presentes dentro de las fechas seleccionadas
+        mask_fechas = (df_raw_proc['Fecha'].dt.date >= fecha_ini) & (df_raw_proc['Fecha'].dt.date <= fecha_fin)
+        periodos_validos = df_raw_proc.loc[mask_fechas, 'Orden_Periodo'].unique()
+        
+        # Filtramos el DataFrame final agrupado
+        mask = df_final['Orden_Periodo'].isin(periodos_validos)
         df_plot = df_final[mask].copy()
         
         col1, col2, col3 = st.columns(3)
@@ -243,16 +247,17 @@ if uploaded_file is not None:
                                     textos_a_ajustar.append(t)
 
                         if textos_a_ajustar:
+                            # 🔥 AJUSTE DE SEPARACIÓN AQUÍ 🔥
                             adjust_text(
                                 textos_a_ajustar, 
                                 ax=ax, 
                                 only_move={'points': 'xy', 'text': 'xy'}, 
-                                expand_points=(1.05, 1.1), 
-                                expand_text=(1.05, 1.1),
-                                force_text=(0.8, 1.3),
-                                force_points=(0.4, 1.2),
+                                expand_points=(1.15, 1.25),   # Se aumentó un poquito para separar más
+                                expand_text=(1.15, 1.25),     # Se aumentó un poquito para separar más
+                                force_text=(1.0, 1.5),        # Empuje un poco más fuerte
+                                force_points=(0.6, 1.4),      # Empuje un poco más fuerte
                                 arrowprops=dict(arrowstyle='-', color='#78909C', lw=1.2, alpha=0.8, zorder=2), 
-                                max_move=25
+                                max_move=40                   # Intentos incrementados a 40 para mayor acomodo
                             )
 
                         if defecto in tolerancias_defectos:
