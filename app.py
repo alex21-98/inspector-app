@@ -2,12 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 from adjustText import adjust_text
 from pptx import Presentation
 from pptx.util import Inches
 from pptx.dml.color import RGBColor
 import io
 import datetime
+import math
 
 # ==========================================
 # CONFIGURACIÓN DE LA PÁGINA
@@ -93,94 +95,190 @@ def filtrar_dataframe(df, fecha_ini, fecha_fin, fundos_sel, variedades_sel, lote
     return df_filt
 
 # ==========================================
-# LÓGICA DE GRÁFICOS REUTILIZABLE
+# FUNCIONES VISUALES (Extraídas de versión avanzada)
+# ==========================================
+def calcular_ylim(valores, tol_num=None, es_porcentaje=False):
+    vals = [float(v) for v in valores if pd.notna(v)]
+    if tol_num is not None and pd.notna(tol_num): vals.append(float(tol_num))
+    vals = [v for v in vals if not math.isnan(v)]
+    
+    if not vals: return 0, 1
+    d_min, d_max = min(vals), max(vals)
+    rango = d_max - d_min
+
+    if rango == 0:
+        margen = max(abs(d_max) * 0.1, 1)
+        return (0 if es_porcentaje else d_min - margen), d_max + margen
+
+    if es_porcentaje:
+        y_min = 0
+        y_max = d_max + (rango * 0.25)
+    else:
+        y_min = max(0, d_min - (rango * 0.5))
+        y_max = d_max + (rango * 0.5)
+
+    if tol_num is not None and y_max < tol_num * 1.15:
+        y_max = tol_num * 1.15
+
+    return y_min, y_max
+
+def configurar_eje_y_sutil(ax, es_porcentaje):
+    ax.get_yaxis().set_visible(True)
+    ax.yaxis.set_major_locator(mtick.MaxNLocator(nbins=5, prune='lower'))
+    ax.tick_params(axis='y', labelsize=10, colors='#9E9E9E', length=0, pad=5)
+    
+    if es_porcentaje:
+        ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=100 if es_porcentaje else 1, decimals=0))
+        
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_color('#CFD8DC')
+    ax.spines['bottom'].set_linewidth(1.5)
+    ax.grid(axis='y', color='#F0F4F8', linewidth=1.2, alpha=1.0, zorder=0)
+
+def reordenar_etiquetas_verticalmente(textos, ax, sep_frac=0.04):
+    if not textos: return
+    y_min, y_max = ax.get_ylim()
+    rango_y = y_max - y_min
+    if rango_y <= 0: return
+    sep_min = rango_y * sep_frac
+    
+    grupos = {}
+    for t in textos:
+        x_val = round(t.get_position()[0], 3)
+        if x_val not in grupos: grupos[x_val] = []
+        grupos[x_val].append(t)
+        
+    for x_val, items in grupos.items():
+        if len(items) <= 1: continue
+        items = sorted(items, key=lambda x: x.get_position()[1])
+        for _ in range(15):
+            hubo_cambio = False
+            for i in range(len(items) - 1):
+                y1 = items[i].get_position()[1]
+                y2 = items[i+1].get_position()[1]
+                if (y2 - y1) < sep_min:
+                    diff = sep_min - (y2 - y1)
+                    items[i].set_position((x_val, y1 - diff / 2.0))
+                    items[i+1].set_position((x_val, y2 + diff / 2.0))
+                    hubo_cambio = True
+            if not hubo_cambio: break
+        
+        margen = rango_y * 0.02
+        for t in items:
+            y_curr = t.get_position()[1]
+            if y_curr > y_max - margen: t.set_position((x_val, y_max - margen))
+            if y_curr < y_min + margen: t.set_position((x_val, y_min + margen))
+
+def anclar_x_original(textos):
+    for t in textos:
+        if hasattr(t, '_data_x'):
+            _, y_curr = t.get_position()
+            t.set_position((t._data_x, y_curr))
+
+# ==========================================
+# LÓGICA DE GRÁFICOS REUTILIZABLE (MEJORADA)
 # ==========================================
 def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, defecto, 
                              titulo_personalizado, texto_fundos, var, tolerancias_defectos, 
                              es_escala_decimal, sufijo="%", multiplicador=1.0):
                              
-    fig, ax = plt.subplots(figsize=(14, 8), dpi=150)
-    
     # Asegurarse que Fundo está en groupby si agrupan por otra cosa
     cols_groupby = [col_agrupacion, periodo_col, orden_col]
     if 'Fundo' not in cols_groupby and 'Fundo' in data_var.columns:
         cols_groupby.append('Fundo')
         
-    # PROMEDIO SIMPLE: Agrupamos directamente la data cruda, dándole peso igual a cada muestra original
+    # PROMEDIO SIMPLE
     data_agg = data_var.groupby(cols_groupby, dropna=False)[defecto].mean().reset_index()
+    data_agg = data_agg.dropna(subset=[periodo_col, orden_col]).sort_values(orden_col)
     
-    periodos_ordenados = data_agg.sort_values(orden_col)[periodo_col].unique()
+    periodos_ordenados = data_agg[periodo_col].unique().tolist()
     entidades_presentes = data_agg[col_agrupacion].unique()
-    textos_a_ajustar = []
 
-    num_lineas = len(entidades_presentes)
-    fs_dinamico = 14 if num_lineas <= 5 else (13 if num_lineas <= 8 else 12)
-    pad_box = 0.3 if num_lineas <= 5 else (0.25 if num_lineas <= 8 else 0.15)
-    
+    # Configuración de figura con tamaño de versión avanzada
+    fig, ax = plt.subplots(figsize=(16.5, 8.5), dpi=130)
+    fig.patch.set_facecolor('#FFFFFF')
+    ax.set_facecolor('#FFFFFF')
+
+    # Título estilizado
+    fig.subplots_adjust(top=0.78, bottom=0.1, left=0.06, right=0.95)
+    titulo_completo = f"{titulo_personalizado}: {defecto} - {texto_fundos}".upper()
+    fig.suptitle(f"{titulo_completo}\nVARIEDAD: {str(var).upper()}", 
+                 fontsize=22, fontweight='bold', color='#1A237E', y=0.95, va='top')
+
+    textos_a_ajustar = []
     colores_fuertes = [
-        '#1976D2', '#388E3C', '#FBC02D', '#8E24AA', '#F57C00', '#0097A7', '#689F38', '#C2185B', '#111111', '#455A64',
-        '#3F51B5', '#00796B', '#AFB42B', '#512DA8', '#0288D1', '#F50057', '#C0CA33', '#8D6E63', '#26A69A', '#00ACC1'
+        '#1976D2', '#388E3C', '#D32F2F', '#7B1FA2', '#F57C00', '#00796B', '#C2185B', '#5D4037', 
+        '#0097A7', '#455A64', '#303F9F', '#827717', '#E64A19', '#512DA8', '#0288D1'
     ]
 
+    num_entidades = len(entidades_presentes)
+    fs_label = 13 if num_entidades <= 6 else 11
+    ultimo_periodo_grafico = periodos_ordenados[-1] if periodos_ordenados else None
+    
+    # Pre-calcular máximos y mínimos por periodo para el filtrado inteligente de etiquetas
+    max_per_period = {per: data_agg[data_agg[periodo_col] == per][defecto].max() for per in periodos_ordenados}
+    min_per_period = {per: data_agg[data_agg[periodo_col] == per][defecto].min() for per in periodos_ordenados}
+    es_porcentaje = sufijo == "%"
+
     for i, entidad in enumerate(entidades_presentes):
-        data_entidad = data_agg[data_agg[col_agrupacion] == entidad]
+        d_entidad = data_agg[data_agg[col_agrupacion] == entidad]
         color_asignado = colores_fuertes[i % len(colores_fuertes)]
 
-        valores_entidad_alineados = []
-        for per in periodos_ordenados:
-            valor_per = data_entidad.loc[data_entidad[periodo_col] == per, defecto]
-            if not valor_per.empty and pd.notna(valor_per.iloc[0]):
-                valores_entidad_alineados.append(valor_per.iloc[0])
-            else:
-                valores_entidad_alineados.append(np.nan)
+        vals_raw = [d_entidad.loc[d_entidad[periodo_col] == per, defecto].iloc[0] if not d_entidad.loc[d_entidad[periodo_col] == per, defecto].empty else np.nan for per in periodos_ordenados]
+        vals_plot = [(v * multiplicador if (pd.notna(v) and es_escala_decimal) else v) for v in vals_raw]
 
-        ax.plot(periodos_ordenados, valores_entidad_alineados, marker='o', label=entidad, 
-                linewidth=4, color=color_asignado, markersize=8, markeredgecolor='white', 
-                markeredgewidth=1.5, zorder=5)
+        ax.plot(periodos_ordenados, vals_plot, marker='o', label=entidad, 
+                linewidth=3.0, color=color_asignado, markersize=8, markeredgecolor='white', 
+                markeredgewidth=1.5, zorder=5, alpha=0.85)
 
-        for x_val, p in zip(periodos_ordenados, valores_entidad_alineados):
-            if pd.notna(p):
-                val_etq = p * multiplicador if es_escala_decimal else p
-                t = ax.text(x_val, p, f'{val_etq:.1f}{sufijo}', fontsize=fs_dinamico, fontweight='bold', color='white', 
+        for x_val, v_raw, v_plot in zip(periodos_ordenados, vals_raw, vals_plot):
+            if pd.isna(v_plot): continue
+            
+            # Etiquetado inteligente
+            debe_etiquetar = True if num_entidades <= 6 else (v_raw == max_per_period[x_val] or v_raw == min_per_period[x_val] or x_val == ultimo_periodo_grafico)
+            
+            if debe_etiquetar:
+                val_etq = v_raw * multiplicador if es_escala_decimal else v_plot
+                txt = f'{val_etq:.1f}{sufijo}'
+                t = ax.text(x_val, v_plot, txt, fontsize=fs_label, fontweight='bold', color='white', 
                             ha='center', va='center', zorder=10, 
-                            bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='white', boxstyle=f'square,pad={pad_box}'))
+                            bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='none', pad=0.3))
+                t._data_value = v_plot
+                t._data_x = t.get_position()[0]
                 textos_a_ajustar.append(t)
 
+    # Configurar Ejes y Tolerancia
+    tol_num = tolerancias_defectos.get(defecto)
+    if tol_num is not None:
+        valor_tol_grafico = tol_num / multiplicador if es_escala_decimal and not es_porcentaje else tol_num
+        ax.axhline(y=valor_tol_grafico, color='#D32F2F', linestyle='--', linewidth=2.5, alpha=0.8, label=f'Límite ({tol_num}{sufijo})', zorder=3)
+
+    valores_ylim = [v * multiplicador if (es_escala_decimal) else v for v in data_agg[defecto].dropna().tolist()]
+    y_min_plot, y_max_plot = calcular_ylim(valores_ylim, tol_num, es_porcentaje=es_porcentaje)
+    ax.set_ylim(y_min_plot, y_max_plot)
+    configurar_eje_y_sutil(ax, es_porcentaje=es_porcentaje)
+
+    # Leyenda Dinámica
+    ncol_dinamico = min(len(entidades_presentes) + (1 if tol_num is not None else 0), 5)
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.05), ncol=ncol_dinamico, frameon=False, fontsize=12)
+
+    # Evitar Cruces de Etiquetas
     if textos_a_ajustar:
-        adjust_text(textos_a_ajustar, ax=ax, only_move={'points': 'xy', 'text': 'xy'}, 
-                    expand_points=(1.15, 1.25), expand_text=(1.15, 1.25), 
-                    force_text=(1.0, 1.5), force_points=(0.6, 1.4), 
-                    arrowprops=dict(arrowstyle='-', color='#78909C', lw=1.2, alpha=0.8, zorder=2), 
-                    max_move=40)
+        try:
+            adjust_text(textos_a_ajustar, ax=ax, only_move={'text': 'y'}, force_text=(0.0, 0.5), lim=50)
+            reordenar_etiquetas_verticalmente(textos_a_ajustar, ax, sep_frac=0.05)
+            anclar_x_original(textos_a_ajustar)
+        except Exception:
+            pass
 
-    if defecto in tolerancias_defectos:
-        valor_tol = tolerancias_defectos[defecto]
-        valor_tol_grafico = valor_tol / multiplicador if es_escala_decimal else valor_tol
-        ax.axhline(y=valor_tol_grafico, color='#D32F2F', linestyle='--', linewidth=2.5, label=f'Límite ({valor_tol}{sufijo})', zorder=3)
-        ax.text(0, valor_tol_grafico, f' T: {valor_tol}{sufijo} ', color='white', fontsize=12, fontweight='bold',
-                ha='left', va='bottom', zorder=15, bbox=dict(facecolor='#D32F2F', edgecolor='white', alpha=0.9, boxstyle='round,pad=0.3'))
-
-    columnas_leyenda = min(len(entidades_presentes) + 1, 5)
-    total_items = len(entidades_presentes) + 1
-    filas_leyenda = (total_items + columnas_leyenda - 1) // columnas_leyenda
-    pad_dinamico = 10 + (filas_leyenda * 15)
-
-    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), ncol=columnas_leyenda, frameon=False, fontsize=11)
+    # Formato de Etiquetas X
+    ax.set_xticks(range(len(periodos_ordenados)))
+    rotacion = 0 if len(periodos_ordenados) <= 10 else 45
+    ax.set_xticklabels(periodos_ordenados, rotation=rotacion, ha='center' if rotacion == 0 else 'right', fontsize=12)
+    ax.tick_params(axis='x', pad=5)
     
-    color_texto_principal = '#45605A'
-    color_borde_grafico = '#B0BEC5'
-    
-    ax.set_title(f"{titulo_personalizado}: {defecto} - {texto_fundos}\n".upper(), fontsize=18, fontweight='bold', color=color_texto_principal, pad=pad_dinamico)
-    ax.set_xlabel(f"\nVariedad: {str(var).upper()}", fontsize=14, fontweight='bold', color=color_texto_principal)
-    ax.set_xticklabels(periodos_ordenados, rotation=45, ha='right', fontsize=12)
-    ax.get_yaxis().set_visible(False)
-    ax.margins(y=0.25)
-    
-    for spine in ax.spines.values():
-        spine.set_visible(True)
-        spine.set_color(color_borde_grafico)
-        spine.set_linewidth(2)
-
     plt.figtext(0.99, 0.01, 'Complejo Agroindustrial Beta', horizontalalignment='right', fontsize=10, color='gray', style='italic')
     plt.tight_layout()
     
@@ -199,7 +297,7 @@ with st.sidebar:
         mapa_freq = {"Diario": 'D', "Semanal": 'W', "Mensual": 'M', "Anual": 'Y'}
         freq_elegida = mapa_freq[opcion_freq]
 
-# --- MANEJO DE ESTADO PARA DESCARGA (Evita pérdida de datos) ---
+# --- MANEJO DE ESTADO PARA DESCARGA ---
 if 'pptx_export' not in st.session_state:
     st.session_state.pptx_export = None
     st.session_state.pptx_filename = ""
@@ -219,7 +317,7 @@ if uploaded_file is not None:
         fecha_ini = col_f1.date_input("Fecha Inicio", value=fecha_min, min_value=fecha_min, max_value=fecha_max)
         fecha_fin = col_f2.date_input("Fecha Fin", value=fecha_max, min_value=fecha_min, max_value=fecha_max)
         
-        # Filtros Iniciales para extraer opciones únicas
+        # Filtros Iniciales
         df_temp = filtrar_dataframe(df_raw_proc, fecha_ini, fecha_fin, [], [], [])
         
         col1, col2, col3 = st.columns(3)
@@ -326,7 +424,7 @@ if uploaded_file is not None:
                             fig = generar_grafico_metricas(
                                 data_brix_var, col_agrupacion, 'Periodo', 'Orden_Periodo', 'Brix Promedio', 
                                 "Análisis de BRIX", texto_fundos, var, {}, 
-                                False, sufijo="°Bx", multiplicador=1.0  # Sin % porque Brix es un grado absoluto
+                                False, sufijo="°Bx", multiplicador=1.0 
                             )
                             graficos_expander.pyplot(fig)
                             
@@ -379,12 +477,11 @@ if uploaded_file is not None:
                     prs.save(pptx_stream)
                     pptx_stream.seek(0)
                     
-                    # GUARDAR EN SESSION STATE para que el botón de descarga no desaparezca
                     st.session_state.pptx_export = pptx_stream.getvalue()
                     st.session_state.pptx_filename = f"Reporte_Calidad_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
                     st.success(f"✅ Reporte generado exitosamente con {diapositivas_creadas} diapositivas.")
 
-        # BOTÓN DE DESCARGA RENDERIZADO FUERA DEL st.button("Generar")
+        # BOTÓN DE DESCARGA
         if st.session_state.pptx_export:
             st.download_button(
                 label="📥 Descargar Presentación Generada (PPTX)",
