@@ -95,7 +95,7 @@ def filtrar_dataframe(df, fecha_ini, fecha_fin, fundos_sel, variedades_sel, lote
     return df_filt
 
 # ==========================================
-# FUNCIONES VISUALES (Extraídas de versión avanzada)
+# FUNCIONES VISUALES
 # ==========================================
 def calcular_ylim(valores, tol_num=None, es_porcentaje=False):
     vals = [float(v) for v in valores if pd.notna(v)]
@@ -178,10 +178,10 @@ def anclar_x_original(textos):
             t.set_position((t._data_x, y_curr))
 
 # ==========================================
-# LÓGICA DE GRÁFICOS REUTILIZABLE (MEJORADA)
+# LÓGICA DE GRÁFICOS REUTILIZABLE
 # ==========================================
 def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, defecto, 
-                             titulo_personalizado, texto_fundos, var, tolerancias_defectos, 
+                             titulo_personalizado, var, tolerancias_defectos, 
                              es_escala_decimal, sufijo="%", multiplicador=1.0):
                              
     # Asegurarse que Fundo está en groupby si agrupan por otra cosa
@@ -196,14 +196,14 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
     periodos_ordenados = data_agg[periodo_col].unique().tolist()
     entidades_presentes = data_agg[col_agrupacion].unique()
 
-    # Configuración de figura con tamaño de versión avanzada
+    # Configuración de figura
     fig, ax = plt.subplots(figsize=(16.5, 8.5), dpi=130)
     fig.patch.set_facecolor('#FFFFFF')
     ax.set_facecolor('#FFFFFF')
 
-    # Título estilizado
+    # Título estilizado (Sin lista de fundos)
     fig.subplots_adjust(top=0.78, bottom=0.1, left=0.06, right=0.95)
-    titulo_completo = f"{titulo_personalizado}: {defecto} - {texto_fundos}".upper()
+    titulo_completo = f"{titulo_personalizado}: {defecto}".upper()
     fig.suptitle(f"{titulo_completo}\nVARIEDAD: {str(var).upper()}", 
                  fontsize=22, fontweight='bold', color='#1A237E', y=0.95, va='top')
 
@@ -381,7 +381,6 @@ if uploaded_file is not None:
                 df_plot = filtrar_dataframe(df_raw_proc, fecha_ini, fecha_fin, fundos_sel, variedades_sel, lotes_sel)
                 
                 if not df_plot.empty:
-                    texto_fundos = " y ".join(df_plot['Fundo'].unique())
                     for defecto in defectos_sel:
                         for var in variedades_sel:
                             data_var = df_plot[df_plot['Variedad'] == var]
@@ -392,7 +391,7 @@ if uploaded_file is not None:
                             
                             fig = generar_grafico_metricas(
                                 data_var, col_agrupacion, 'Periodo', 'Orden_Periodo', defecto, 
-                                titulo_personalizado, texto_fundos, var, tolerancias_defectos, 
+                                titulo_personalizado, var, tolerancias_defectos, 
                                 es_escala_decimal, sufijo="%", multiplicador=100.0
                             )
                             graficos_expander.pyplot(fig)
@@ -404,68 +403,6 @@ if uploaded_file is not None:
                             slide = prs.slides.add_slide(prs.slide_layouts[5])
                             title_shape = slide.shapes.title
                             title_shape.text = f"{titulo_personalizado}: {defecto}"
-                            title_shape.text_frame.paragraphs[0].font.color.rgb = RGBColor(69, 96, 90)
-                            title_shape.text_frame.paragraphs[0].font.bold = True
-                            image_stream.seek(0)
-                            slide.shapes.add_picture(image_stream, Inches(0.25), Inches(1.8), width=Inches(9.5))
-                            diapositivas_creadas += 1
-
-                # 2. INTEGRACIÓN AUTOMÁTICA DE HOJAS EXTRAS (BRIX Y ACIDEZ)
-                # Hoja BRIX
-                if "BRIX" in hojas_disponibles:
-                    df_brix_crudo = cargar_hoja_cruda(uploaded_file, "BRIX", freq_elegida)
-                    df_brix_plot = filtrar_dataframe(df_brix_crudo, fecha_ini, fecha_fin, fundos_sel, variedades_sel, lotes_sel)
-                    
-                    if not df_brix_plot.empty and 'Brix Promedio' in df_brix_plot.columns:
-                        for var in variedades_sel:
-                            data_brix_var = df_brix_plot[df_brix_plot['Variedad'] == var]
-                            if data_brix_var['Brix Promedio'].isnull().all() or data_brix_var.empty: continue
-                            
-                            fig = generar_grafico_metricas(
-                                data_brix_var, col_agrupacion, 'Periodo', 'Orden_Periodo', 'Brix Promedio', 
-                                "Análisis de BRIX", texto_fundos, var, {}, 
-                                False, sufijo="°Bx", multiplicador=1.0 
-                            )
-                            graficos_expander.pyplot(fig)
-                            
-                            image_stream = io.BytesIO()
-                            fig.savefig(image_stream, format='png', dpi=300, bbox_inches='tight', transparent=False)
-                            plt.close(fig)
-                            slide = prs.slides.add_slide(prs.slide_layouts[5])
-                            title_shape = slide.shapes.title
-                            title_shape.text = f"Análisis de BRIX: Brix Promedio"
-                            title_shape.text_frame.paragraphs[0].font.color.rgb = RGBColor(69, 96, 90)
-                            title_shape.text_frame.paragraphs[0].font.bold = True
-                            image_stream.seek(0)
-                            slide.shapes.add_picture(image_stream, Inches(0.25), Inches(1.8), width=Inches(9.5))
-                            diapositivas_creadas += 1
-
-                # Hoja ACIDEZ
-                if "ACIDEZ" in hojas_disponibles:
-                    df_acidez_crudo = cargar_hoja_cruda(uploaded_file, "ACIDEZ", freq_elegida)
-                    df_acidez_plot = filtrar_dataframe(df_acidez_crudo, fecha_ini, fecha_fin, fundos_sel, variedades_sel, lotes_sel)
-                    
-                    if not df_acidez_plot.empty and '% Acidez' in df_acidez_plot.columns:
-                        for var in variedades_sel:
-                            data_acidez_var = df_acidez_plot[df_acidez_plot['Variedad'] == var]
-                            if data_acidez_var['% Acidez'].isnull().all() or data_acidez_var.empty: continue
-                            
-                            max_acidez = data_acidez_var['% Acidez'].max()
-                            es_dec_acidez = max_acidez < 1.0 if pd.notna(max_acidez) else False
-                            
-                            fig = generar_grafico_metricas(
-                                data_acidez_var, col_agrupacion, 'Periodo', 'Orden_Periodo', '% Acidez', 
-                                "Análisis de Acidez", texto_fundos, var, {}, 
-                                es_dec_acidez, sufijo="%", multiplicador=100.0
-                            )
-                            graficos_expander.pyplot(fig)
-                            
-                            image_stream = io.BytesIO()
-                            fig.savefig(image_stream, format='png', dpi=300, bbox_inches='tight', transparent=False)
-                            plt.close(fig)
-                            slide = prs.slides.add_slide(prs.slide_layouts[5])
-                            title_shape = slide.shapes.title
-                            title_shape.text = f"Análisis de Acidez: % Acidez"
                             title_shape.text_frame.paragraphs[0].font.color.rgb = RGBColor(69, 96, 90)
                             title_shape.text_frame.paragraphs[0].font.bold = True
                             image_stream.seek(0)
