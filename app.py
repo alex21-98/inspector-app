@@ -20,6 +20,14 @@ st.title("📊🖥️ Generador de Reportes de MP-Calidad Gerencial")
 st.markdown("Complejo Agroindustrial Beta - Sistema de Visualización de Defectos")
 
 # ==========================================
+# FUNCIÓN DE LIMPIEZA DE ESTADO (NUEVO)
+# ==========================================
+# Esta función borra el PPTX generado si el usuario cambia cualquier filtro
+def limpiar_estado():
+    if 'pptx_export' in st.session_state:
+        st.session_state.pptx_export = None
+
+# ==========================================
 # 1. CARGA DE DATOS Y PREPARACIÓN
 # ==========================================
 MAPEO_COLUMNAS = {
@@ -29,10 +37,11 @@ MAPEO_COLUMNAS = {
     'Variedad': ['variedad', 'var']
 }
 
+# Modificado para recibir "file_bytes" y evitar que el archivo se agote y pida resubir
 @st.cache_data
-def cargar_hoja_cruda(file, sheet, freq):
+def cargar_hoja_cruda(file_bytes, sheet, freq):
     """Carga y estandariza una hoja genérica retornando la data cruda para promedios simples"""
-    df_raw = pd.read_excel(file, sheet_name=sheet)
+    df_raw = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet)
     df_proc = df_raw.copy()
     nuevos_nombres = {}
     
@@ -50,7 +59,6 @@ def cargar_hoja_cruda(file, sheet, freq):
         df_proc['Fecha'] = pd.to_datetime(df_proc['Fecha'], errors='coerce', dayfirst=True)
         df_proc = df_proc.dropna(subset=['Fecha'])
 
-        # Lógica de Periodos
         if freq == 'D':
             df_proc['Periodo'] = df_proc['Fecha'].dt.strftime('%d/%m/%Y')
             df_proc['Orden_Periodo'] = df_proc['Fecha'].dt.normalize()
@@ -184,40 +192,48 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
                              titulo_personalizado, var, tolerancias_defectos, 
                              es_escala_decimal, sufijo="%", multiplicador=1.0):
                              
-    # Asegurarse que Fundo está en groupby si agrupan por otra cosa
     cols_groupby = [col_agrupacion, periodo_col, orden_col]
     if 'Fundo' not in cols_groupby and 'Fundo' in data_var.columns:
         cols_groupby.append('Fundo')
         
-    # PROMEDIO SIMPLE
     data_agg = data_var.groupby(cols_groupby, dropna=False)[defecto].mean().reset_index()
     data_agg = data_agg.dropna(subset=[periodo_col, orden_col]).sort_values(orden_col)
     
     periodos_ordenados = data_agg[periodo_col].unique().tolist()
     entidades_presentes = data_agg[col_agrupacion].unique()
 
-    # Configuración de figura
     fig, ax = plt.subplots(figsize=(16.5, 8.5), dpi=130)
     fig.patch.set_facecolor('#FFFFFF')
     ax.set_facecolor('#FFFFFF')
 
-    # Título estilizado (Sin lista de fundos)
     fig.subplots_adjust(top=0.78, bottom=0.1, left=0.06, right=0.95)
     titulo_completo = f"{titulo_personalizado}: {defecto}".upper()
     fig.suptitle(f"{titulo_completo}\nVARIEDAD: {str(var).upper()}", 
-                 fontsize=22, fontweight='bold', color='#1A237E', y=0.95, va='top')
+                 fontsize=18, fontweight='bold', color='#1A237E', y=0.95, va='top')
 
     textos_a_ajustar = []
     colores_fuertes = [
-        '#1976D2', '#388E3C', '#D32F2F', '#7B1FA2', '#F57C00', '#00796B', '#C2185B', '#5D4037', 
-        '#0097A7', '#455A64', '#303F9F', '#827717', '#E64A19', '#512DA8', '#0288D1'
+        '#2874A6',  # 1. Azul acero oscuro (Jayanca I)
+        '#239B56',  # 2. Verde bosque/esmeralda oscuro (Olmos)
+        '#D68910',  # 3. Dorado/Ámbar oscuro (Olmos II)
+        '#76448A',  # 4. Púrpura apagado/Ciruela (Pacora)
+        '#B03A2E',  # 5. Rojo terracota
+        '#117A65',  # 6. Teal/Verde azulado oscuro
+        '#935116',  # 7. Marrón roble
+        '#2C3E50',  # 8. Gris naval/Antracita oscuro
+        '#1F618D',  # 9. Azul cobalto oscuro
+        '#9A7D0A',  # 10. Ocre / Oliva corporativo
+        '#AF601A',  # 11. Cobre
+        '#5B2C6F',  # 12. Berenjena
+        '#148F77',  # 13. Cian oscuro apagado
+        '#78281F',  # 14. Rojo vino/Burdeos
+        '#34495E'   # 15. Gris pizarra
     ]
 
     num_entidades = len(entidades_presentes)
     fs_label = 13 if num_entidades <= 6 else 11
     ultimo_periodo_grafico = periodos_ordenados[-1] if periodos_ordenados else None
     
-    # Pre-calcular máximos y mínimos por periodo para el filtrado inteligente de etiquetas
     max_per_period = {per: data_agg[data_agg[periodo_col] == per][defecto].max() for per in periodos_ordenados}
     min_per_period = {per: data_agg[data_agg[periodo_col] == per][defecto].min() for per in periodos_ordenados}
     es_porcentaje = sufijo == "%"
@@ -236,7 +252,6 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
         for x_val, v_raw, v_plot in zip(periodos_ordenados, vals_raw, vals_plot):
             if pd.isna(v_plot): continue
             
-            # Etiquetado inteligente
             debe_etiquetar = True if num_entidades <= 6 else (v_raw == max_per_period[x_val] or v_raw == min_per_period[x_val] or x_val == ultimo_periodo_grafico)
             
             if debe_etiquetar:
@@ -244,12 +259,11 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
                 txt = f'{val_etq:.1f}{sufijo}'
                 t = ax.text(x_val, v_plot, txt, fontsize=fs_label, fontweight='bold', color='white', 
                             ha='center', va='center', zorder=10, 
-                            bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='none', pad=0.3))
+                            bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='none', pad=0.6))
                 t._data_value = v_plot
                 t._data_x = t.get_position()[0]
                 textos_a_ajustar.append(t)
 
-    # Configurar Ejes y Tolerancia
     tol_num = tolerancias_defectos.get(defecto)
     if tol_num is not None:
         valor_tol_grafico = tol_num / multiplicador if es_escala_decimal and not es_porcentaje else tol_num
@@ -260,11 +274,9 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
     ax.set_ylim(y_min_plot, y_max_plot)
     configurar_eje_y_sutil(ax, es_porcentaje=es_porcentaje)
 
-    # Leyenda Dinámica
     ncol_dinamico = min(len(entidades_presentes) + (1 if tol_num is not None else 0), 5)
     ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.05), ncol=ncol_dinamico, frameon=False, fontsize=12)
 
-    # Evitar Cruces de Etiquetas
     if textos_a_ajustar:
         try:
             adjust_text(textos_a_ajustar, ax=ax, only_move={'text': 'y'}, force_text=(0.0, 0.5), lim=50)
@@ -273,7 +285,6 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
         except Exception:
             pass
 
-    # Formato de Etiquetas X
     ax.set_xticks(range(len(periodos_ordenados)))
     rotacion = 0 if len(periodos_ordenados) <= 10 else 45
     ax.set_xticklabels(periodos_ordenados, rotation=rotacion, ha='center' if rotacion == 0 else 'right', fontsize=12)
@@ -287,13 +298,18 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
 # --- PANEL LATERAL ---
 with st.sidebar:
     st.header("📁 1. Carga de Datos")
-    uploaded_file = st.file_uploader("Sube tu archivo Excel (.xlsx)", type=["xlsx"])
+    # Limpiamos el estado si el usuario decide subir un archivo nuevo
+    uploaded_file = st.file_uploader("Sube tu archivo Excel (.xlsx)", type=["xlsx"], on_change=limpiar_estado)
     if uploaded_file is not None:
-        excel_obj = pd.ExcelFile(uploaded_file)
+        # CONVERSIÓN A BYTES PARA EVITAR EL "AGOTAMIENTO" DEL ARCHIVO
+        file_bytes = uploaded_file.getvalue() 
+        excel_obj = pd.ExcelFile(io.BytesIO(file_bytes))
         hojas_disponibles = excel_obj.sheet_names
-        hoja_final = st.selectbox("👉 Selecciona la hoja principal (Defectos):", hojas_disponibles)
+        
+        # Enlazados a limpiar_estado
+        hoja_final = st.selectbox("👉 Selecciona la hoja principal (Defectos):", hojas_disponibles, on_change=limpiar_estado)
         st.header("⚙️ 2. Periodicidad")
-        opcion_freq = st.selectbox("Agrupar reporte por:", ["Semanal", "Diario", "Mensual", "Anual"])
+        opcion_freq = st.selectbox("Agrupar reporte por:", ["Semanal", "Diario", "Mensual", "Anual"], on_change=limpiar_estado)
         mapa_freq = {"Diario": 'D', "Semanal": 'W', "Mensual": 'M', "Anual": 'Y'}
         freq_elegida = mapa_freq[opcion_freq]
 
@@ -304,7 +320,8 @@ if 'pptx_export' not in st.session_state:
 
 # --- LÓGICA PRINCIPAL ---
 if uploaded_file is not None:
-    df_raw_proc = cargar_hoja_cruda(uploaded_file, hoja_final, freq_elegida)
+    # Se pasa file_bytes en lugar de file_uploader
+    df_raw_proc = cargar_hoja_cruda(file_bytes, hoja_final, freq_elegida)
     lista_defectos = [col for col in df_raw_proc.columns if '%' in str(col)]
     
     if not df_raw_proc.empty:
@@ -314,26 +331,35 @@ if uploaded_file is not None:
         fecha_min = df_raw_proc['Fecha'].min().date()
         fecha_max = df_raw_proc['Fecha'].max().date()
         
-        fecha_ini = col_f1.date_input("Fecha Inicio", value=fecha_min, min_value=fecha_min, max_value=fecha_max)
-        fecha_fin = col_f2.date_input("Fecha Fin", value=fecha_max, min_value=fecha_min, max_value=fecha_max)
+        fecha_ini = col_f1.date_input("Fecha Inicio", value=fecha_min, min_value=fecha_min, max_value=fecha_max, on_change=limpiar_estado)
+        fecha_fin = col_f2.date_input("Fecha Fin", value=fecha_max, min_value=fecha_min, max_value=fecha_max, on_change=limpiar_estado)
         
-        # Filtros Iniciales
-        df_temp = filtrar_dataframe(df_raw_proc, fecha_ini, fecha_fin, [], [], [])
-        
+        # ==========================================
+        # FILTROS EN CASCADA INTELIGENTES
+        # ==========================================
+        df_base = filtrar_dataframe(df_raw_proc, fecha_ini, fecha_fin, [], [], [])
         col1, col2, col3 = st.columns(3)
-        fundos_sel = col1.multiselect("Fundos", df_temp['Fundo'].dropna().unique() if 'Fundo' in df_temp.columns else [])
-        variedades_sel = col2.multiselect("Variedades", df_temp['Variedad'].dropna().unique() if 'Variedad' in df_temp.columns else [])
-        if 'Fundo' in df_temp.columns and 'Lote' in df_temp.columns:
-            df_temp['Etiqueta_Lote'] = df_temp['Fundo'] + " - " + df_temp['Lote']
-            lotes_sel = col3.multiselect("Lotes", df_temp['Etiqueta_Lote'].dropna().unique())
+        
+        # 1. Fundos
+        fundos_disp = df_base['Fundo'].dropna().unique() if 'Fundo' in df_base.columns else []
+        fundos_sel = col1.multiselect("Fundos", sorted(list(fundos_disp)), on_change=limpiar_estado)
+        
+        # 2. Variedades (Se actualiza automáticamente en base al fundo seleccionado)
+        df_var = filtrar_dataframe(df_base, fecha_ini, fecha_fin, fundos_sel, [], [])
+        vars_disp = df_var['Variedad'].dropna().unique() if 'Variedad' in df_var.columns else []
+        variedades_sel = col2.multiselect("Variedades", sorted(list(vars_disp)), on_change=limpiar_estado)
+        
+        # 3. Lotes (Se actualiza automáticamente en base al fundo y variedad seleccionada)
+        df_lote = filtrar_dataframe(df_base, fecha_ini, fecha_fin, fundos_sel, variedades_sel, [])
+        if 'Fundo' in df_lote.columns and 'Lote' in df_lote.columns:
+            df_lote['Etiqueta_Lote'] = df_lote['Fundo'] + " - " + df_lote['Lote']
+            lotes_disp = df_lote['Etiqueta_Lote'].dropna().unique()
+            lotes_sel = col3.multiselect("Lotes", sorted(list(lotes_disp)), on_change=limpiar_estado)
         else:
             lotes_sel = []
         
-        defectos_sel = st.multiselect("Defectos a graficar", lista_defectos)
+        defectos_sel = st.multiselect("Defectos a graficar", lista_defectos, on_change=limpiar_estado)
 
-        # ==========================================
-        # FILTRO PARA NIVEL DE DETALLE DEL GRÁFICO
-        # ==========================================
         st.divider()
         st.subheader("📈 3. Configuración Visual de Gráficos")
         col_visual1, col_visual2 = st.columns(2)
@@ -342,7 +368,8 @@ if uploaded_file is not None:
             nivel_agrupacion = st.radio(
                 "Selecciona cómo deseas agrupar las líneas en el gráfico:",
                 ["Por Lote", "Por Fundo"],
-                horizontal=True
+                horizontal=True,
+                on_change=limpiar_estado
             )
             col_agrupacion = 'Etiqueta_Lote' if nivel_agrupacion == "Por Lote" else 'Fundo'
             
@@ -350,7 +377,8 @@ if uploaded_file is not None:
             titulo_personalizado = st.text_input(
                 "Título base del gráfico:", 
                 value="Evaluación de PT",
-                help="Cambia este texto para modificar el inicio del título en gráficos y diapositivas"
+                help="Cambia este texto para modificar el inicio del título en gráficos y diapositivas",
+                on_change=limpiar_estado
             )
 
         tolerancias_defectos = {}
@@ -360,7 +388,7 @@ if uploaded_file is not None:
             cols = st.columns(min(len(defectos_sel), 4))
             for i, defecto in enumerate(defectos_sel):
                 with cols[i % 4]:
-                    tol_val = st.number_input(f"{defecto}", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key=f"tol_{defecto}")
+                    tol_val = st.number_input(f"{defecto}", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key=f"tol_{defecto}", on_change=limpiar_estado)
                     if tol_val > 0:
                         tolerancias_defectos[defecto] = tol_val
 
@@ -377,7 +405,6 @@ if uploaded_file is not None:
                 diapositivas_creadas = 0
                 graficos_expander = st.expander("Ver Previsualización de Gráficos", expanded=True)
                 
-                # 1. GENERACIÓN DE HOJA PRINCIPAL (DEFECTOS)
                 df_plot = filtrar_dataframe(df_raw_proc, fecha_ini, fecha_fin, fundos_sel, variedades_sel, lotes_sel)
                 
                 if not df_plot.empty:
@@ -417,8 +444,12 @@ if uploaded_file is not None:
                     st.session_state.pptx_export = pptx_stream.getvalue()
                     st.session_state.pptx_filename = f"Reporte_Calidad_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
                     st.success(f"✅ Reporte generado exitosamente con {diapositivas_creadas} diapositivas.")
+                else:
+                    st.warning("⚠️ La combinación de filtros seleccionada no devolvió datos para graficar. Intenta con otra combinación.")
 
         # BOTÓN DE DESCARGA
+        # Ahora, si el usuario cambia algo arriba, esta variable se limpia automáticamente y el botón desaparece
+        # evitando que descargue el PPTX de la selección anterior
         if st.session_state.pptx_export:
             st.download_button(
                 label="📥 Descargar Presentación Generada (PPTX)",
