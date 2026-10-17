@@ -259,7 +259,7 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
                 txt = f'{val_etq:.1f}{sufijo}'
                 t = ax.text(x_val, v_plot, txt, fontsize=fs_label, fontweight='bold', color='white', 
                             ha='center', va='center', zorder=10, 
-                            bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='none', pad=0.6))
+                            bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='none', pad=1.0))
                 t._data_value = v_plot
                 t._data_x = t.get_position()[0]
                 textos_a_ajustar.append(t)
