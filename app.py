@@ -209,7 +209,7 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
     fig.subplots_adjust(top=0.70, bottom=0.1, left=0.06, right=0.95)
     titulo_completo = f"{titulo_personalizado}: {defecto}".upper()
     fig.suptitle(f"{titulo_completo}\nVARIEDAD: {str(var).upper()}", 
-                 fontsize=18, fontweight='bold', color='#1A237E', y=0.95, va='top')
+                 fontsize=18, fontweight='bold', color='#1A237E', y=0.98, va='top')
 
     textos_a_ajustar = []
     colores_fuertes = [
@@ -259,7 +259,7 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
                 txt = f'{val_etq:.1f}{sufijo}'
                 t = ax.text(x_val, v_plot, txt, fontsize=fs_label, fontweight='bold', color='white', 
                             ha='center', va='center', zorder=10, 
-                            bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='none', boxstyle='square,pad=0.6'))
+                            bbox=dict(facecolor=color_asignado, alpha=0.9, edgecolor='none', boxstyle='square,pad=0.3'))
                 t._data_value = v_plot
                 t._data_x = t.get_position()[0]
                 textos_a_ajustar.append(t)
@@ -275,7 +275,7 @@ def generar_grafico_metricas(data_var, col_agrupacion, periodo_col, orden_col, d
     configurar_eje_y_sutil(ax, es_porcentaje=es_porcentaje)
 
     ncol_dinamico = min(len(entidades_presentes) + (1 if tol_num is not None else 0), 5)
-    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.05), ncol=ncol_dinamico, frameon=False, fontsize=12)
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.02), ncol=ncol_dinamico, frameon=False, fontsize=12)
 
     if textos_a_ajustar:
         try:
